@@ -12,6 +12,7 @@ import logging
 from src.agent_workflow import N8nAgent, DifyAgent
 
 from src.token_ui import show_token_input_page, check_token_connected
+from src.auth_ui import show_oauth_connect, show_auth_page
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +68,7 @@ SUGGESTIONS = {
     "Tạo lịch họp trong ngày mai": "Tạo cho tôi một lịch họp vào ngày mai",
 }
 
+show_auth_page()
 
 def stream_n8n_response(message: str) -> Generator[str, None, None]:
     """
