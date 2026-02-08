@@ -28,14 +28,6 @@ services:
       dockerfile: Dockerfile
     container_name: calendar_ai_backend
     restart: unless-stopped
-    command: >
-      sh -c "
-        echo 'Waiting for database...' &&
-        while ! nc -z postgres 5432; do sleep 1; done &&
-        echo 'Database is ready!' &&
-        alembic upgrade head &&
-        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-      "
     volumes:
       - ./backend:/app
     ports:
