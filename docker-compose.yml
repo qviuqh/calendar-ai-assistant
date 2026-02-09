@@ -31,7 +31,7 @@ services:
     volumes:
       - ./backend:/app
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       - SECRET_KEY=${SECRET_KEY}
@@ -39,6 +39,7 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
       - CALENDAR_SERVICE_URL=${CALENDAR_SERVICE_URL}
       - CALENDAR_TOKEN_REFRESH_ENDPOINT=${CALENDAR_TOKEN_REFRESH_ENDPOINT}
+      - CALENDAR_LOGIN_ENDPOINT=${CALENDAR_LOGIN_ENDPOINT}
       - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
       - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
       - DIFY_API_URL=${DIFY_API_URL}
@@ -50,6 +51,7 @@ services:
         condition: service_healthy
     networks:
       - calendar_network
+      - shared-network
 
   # Streamlit Frontend
   frontend:
@@ -76,3 +78,5 @@ volumes:
 networks:
   calendar_network:
     driver: bridge
+  shared-network:
+    external: true

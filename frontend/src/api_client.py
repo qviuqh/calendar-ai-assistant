@@ -11,7 +11,7 @@ class BackendAPIClient:
     """
     
     def __init__(self, base_url: Optional[str] = None):
-        self.base_url = base_url or st.secrets.get("BACKEND_URL", "http://localhost:8000")
+        self.base_url = base_url or st.secrets.get("BACKEND_URL")
         self.api_v1 = f"{self.base_url}/api/v1"
         self.session = requests.Session()
     

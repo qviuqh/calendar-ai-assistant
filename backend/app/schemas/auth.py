@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -12,7 +13,7 @@ class UserLogin(UserBase):
     password: str
 
 class UserResponse(UserBase):
-    id: str
+    id: UUID
     is_active: bool
     created_at: datetime
     

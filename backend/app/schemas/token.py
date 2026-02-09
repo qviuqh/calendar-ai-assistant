@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 class TokenInput(BaseModel):
     """
@@ -16,7 +17,7 @@ class TokenResponse(BaseModel):
     """
     Response after saving token
     """
-    id: str
+    id: UUID
     is_active: bool
     expires_at: datetime
     calendar_user_email: Optional[str] = None
