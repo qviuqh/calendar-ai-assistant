@@ -27,7 +27,7 @@ class BackendAPIClient:
             headers["Authorization"] = f"Bearer {self.auth_token}"
         return headers
     
-    # ========== Authentication (same as before) ==========
+    # ========== Authentication ==========
     
     def register(self, email: str, password: str) -> Dict[str, Any]:
         """Register new user"""
@@ -56,7 +56,48 @@ class BackendAPIClient:
             logger.error(f"Login failed: {str(e)}")
             raise
     
-    # ========== Calendar Token Management ==========
+    # ========== Calendar Service Token Management ==========
+    
+    def login_to_calendar_service(
+        self,
+        email: str,
+        password: str
+    ) -> Dict[str, Any]:
+        """
+        Login to Calendar Service (third-party) via backend
+        
+        Backend will:
+        1. Call Calendar Service /auth/login
+        2. Get access_token, refresh_token, expires_in
+        3. Save to database
+        4. Return token info
+        
+        Args:
+            email: Calendar Service email
+            password: Calendar Service password
+            
+        Returns:
+            Token response from backend
+        """
+        try:
+            response = self.session.post(
+                f"{self.api_v1}/token/calendar-login",
+                json={
+                    "email": email,
+                    "password": password
+                },
+                headers=self._get_headers()
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Calendar login failed: {str(e)}")
+            # Try to get error detail from response
+            try:
+                error_detail = e.response.json().get("detail", str(e))
+            except:
+                error_detail = str(e)
+            raise Exception(error_detail)
     
     def save_calendar_token(
         self,
@@ -67,7 +108,10 @@ class BackendAPIClient:
         notes: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Save calendar service tokens
+        Save calendar service tokens manually
+        
+        Alternative to login_to_calendar_service when user
+        manually obtains tokens from Calendar Service.
         
         Args:
             access_token: Access token from calendar service
@@ -157,7 +201,7 @@ class BackendAPIClient:
             logger.error(f"Delete token failed: {str(e)}")
             raise
     
-    # ========== Chat (same as before) ==========
+    # ========== Chat ==========
     
     def chat_stream(
         self,

@@ -44,6 +44,7 @@ services:
       - DIFY_API_URL=${DIFY_API_URL}
       - DIFY_API_KEY=${DIFY_API_KEY}
       - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS}
+      - BACKEND_URL=${BACKEND_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,7 +63,7 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - BACKEND_URL=http://backend:8000
+      - BACKEND_URL=${BACKEND_URL}
     depends_on:
       - backend
     networks:

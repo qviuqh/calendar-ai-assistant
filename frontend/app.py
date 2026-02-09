@@ -11,8 +11,9 @@ import logging
 # Import agent classes
 from src.agent_workflow import N8nAgent, DifyAgent
 
+# Import authentication and token management
+from src.auth_ui import show_auth_page, check_webapp_authentication, logout
 from src.token_ui import show_token_input_page, check_token_connected
-from src.auth_ui import show_oauth_connect, show_auth_page
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +25,12 @@ DIFY_API_URL = st.secrets.get("DIFY_API_URL")
 DIFY_API_KEY = st.secrets.get("DIFY_API_KEY")
 
 # Cấu hình trang
-st.set_page_config(page_title="Calendar AI Assistant", page_icon="📆")
+st.set_page_config(
+    page_title="Calendar AI Assistant",
+    page_icon="📆",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # Biến cấu hình
 MIN_TIME_BETWEEN_REQUESTS = datetime.timedelta(seconds=1)
@@ -68,7 +74,24 @@ SUGGESTIONS = {
     "Tạo lịch họp trong ngày mai": "Tạo cho tôi một lịch họp vào ngày mai",
 }
 
-show_auth_page()
+
+# ============================================================
+# AUTHENTICATION & TOKEN CHECK
+# ============================================================
+
+# Step 1: Check webapp authentication
+if not check_webapp_authentication():
+    show_auth_page()
+    st.stop()
+
+# Step 2: Check Calendar Service connection
+if not check_token_connected():
+    show_token_input_page()
+    st.stop()
+
+# Both authenticated and connected - show main app
+# ============================================================
+
 
 def stream_n8n_response(message: str) -> Generator[str, None, None]:
     """
@@ -135,7 +158,6 @@ def stream_n8n_response(message: str) -> Generator[str, None, None]:
 
 
 def stream_dify_response(message: str) -> Generator[str, None, None]:
-    # sourcery skip: inline-immediately-yielded-variable
     """
     Stream response từ Dify agent
     
@@ -309,15 +331,24 @@ def show_disclaimer_dialog():
     """)
 
 
+# ============================================================
+# MAIN APP UI
+# ============================================================
+
 # Header với khoảng trắng
 st.html(div(style=styles(font_size=rem(5), line_height=1))["📆"])
 
 # Title row
-title_row = st.container(horizontal=False, vertical_alignment="bottom")
+col1, col2 = st.columns([6, 1])
 
-with title_row:
-    st.title("Calendar AI Assistant", anchor=False, width="stretch")
+with col1:
+    st.title("Calendar AI Assistant", anchor=False)
     st.caption("Trợ lý AI quản lý lịch trình cá nhân thông minh")
+
+with col2:
+    # Logout button
+    if st.button("🚪 Đăng xuất", use_container_width=True, type="secondary"):
+        logout()
 
 # Kiểm tra trạng thái tương tác
 user_just_asked_initial_question = (
@@ -336,7 +367,33 @@ has_message_history = len(st.session_state.messages) > 0
 
 # Sidebar
 with st.sidebar:
-    st.header("Cấu hình")
+    st.header("⚙️ Cấu hình")
+    
+    # User info
+    with st.expander("👤 Thông tin tài khoản", expanded=False):
+        from src.api_client import BackendAPIClient
+        api_client = BackendAPIClient()
+        
+        try:
+            token_status = api_client.check_token_status()
+            if token_status.get("calendar_user_email"):
+                st.success(f"📧 Calendar: {token_status['calendar_user_email']}")
+            
+            if token_status.get("expires_at"):
+                from datetime import datetime
+                expires = datetime.fromisoformat(token_status["expires_at"].replace("Z", ""))
+                time_left = expires - datetime.utcnow()
+                
+                if time_left.total_seconds() > 0:
+                    hours = int(time_left.total_seconds() // 3600)
+                    minutes = int((time_left.total_seconds() % 3600) // 60)
+                    st.info(f"⏰ Token hết hạn sau: {hours}h {minutes}m")
+                else:
+                    st.warning("⚠️ Token đã hết hạn")
+        except:
+            pass
+    
+    st.divider()
     
     # Agent selection
     agent = st.radio(
@@ -359,7 +416,7 @@ with st.sidebar:
     st.divider()
     
     # Connection status
-    st.subheader("Trạng thái kết nối")
+    st.subheader("📡 Trạng thái kết nối")
     
     with st.spinner("Đang kiểm tra..."):
         is_connected, status_msg = test_agent_connection(st.session_state.current_agent)
@@ -383,13 +440,21 @@ with st.sidebar:
     
     st.divider()
     
-    # Clear chat button
-    if st.button("Xóa lịch sử chat", use_container_width=True):
-        st.session_state.messages = []
-        st.session_state.conversation_id = None
-        st.success("Đã xóa lịch sử chat")
-        time.sleep(0.5)
-        st.rerun()
+    # Action buttons
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔄 Token", use_container_width=True, help="Quản lý Calendar token"):
+            st.session_state.token_connected = False
+            st.rerun()
+    
+    with col2:
+        if st.button("🗑️ Chat", use_container_width=True, help="Xóa lịch sử chat"):
+            st.session_state.messages = []
+            st.session_state.conversation_id = None
+            st.success("Đã xóa!")
+            time.sleep(0.5)
+            st.rerun()
     
     st.divider()
     
@@ -400,6 +465,8 @@ with st.sidebar:
         if debug_mode:
             st.caption("**Session State:**")
             st.json({
+                "authenticated": st.session_state.get("authenticated", False),
+                "token_connected": st.session_state.get("token_connected", False),
                 "current_agent": st.session_state.current_agent,
                 "user_id": st.session_state.user_id,
                 "conversation_id": st.session_state.conversation_id,

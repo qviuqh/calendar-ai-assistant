@@ -3,24 +3,27 @@ from src.api_client import BackendAPIClient
 
 def show_auth_page():
     """
-    Display authentication page (Login/Register)
+    Display webapp authentication page (Login/Register)
+    This is called by app.py when user is not authenticated.
     """
-    st.title("Calendar AI Assistant")
-    
     # Initialize API client
     api_client = BackendAPIClient()
     
     # Check backend health
     if not api_client.health_check():
-        st.error("Cannot connect to backend server. Please check if the server is running.")
+        st.error("⚠️ Cannot connect to backend server. Please check if the server is running.")
+        st.code("docker-compose up -d")
         st.stop()
+    
+    st.title("📆 Calendar AI Assistant")
+    st.caption("Trợ lý AI quản lý lịch trình cá nhân thông minh")
     
     # Tabs for Login and Register
     tab1, tab2 = st.tabs(["Đăng nhập", "Đăng ký"])
     
     with tab1:
         with st.form("login_form"):
-            st.subheader("Đăng nhập")
+            st.subheader("Đăng nhập Webapp")
             email = st.text_input("Email", key="login_email")
             password = st.text_input("Password", type="password", key="login_password")
             
@@ -38,7 +41,10 @@ def show_auth_page():
                             st.session_state.auth_token = token
                             st.session_state.authenticated = True
                             
-                            st.success("Đăng nhập thành công!")
+                            st.success("✅ Đăng nhập thành công!")
+                            st.info("Tiếp theo: Kết nối với Calendar Service...")
+                            import time
+                            time.sleep(1)
                             st.rerun()
                     except Exception as e:
                         st.error(f"❌ Đăng nhập thất bại: {str(e)}")
@@ -63,51 +69,28 @@ def show_auth_page():
                     try:
                         with st.spinner("Đang đăng ký..."):
                             api_client.register(email, password)
-                            st.success("Đăng ký thành công! Vui lòng đăng nhập.")
+                            st.success("✅ Đăng ký thành công! Vui lòng đăng nhập.")
                     except Exception as e:
-                        st.error(f"Đăng ký thất bại: {str(e)}")
+                        st.error(f"❌ Đăng ký thất bại: {str(e)}")
 
-def show_oauth_connect():
-    """
-    Display OAuth connection page
-    """
-    st.title("📅 Kết nối Google Calendar")
-    
-    api_client = BackendAPIClient()
-    
-    st.info("Để sử dụng Calendar AI Assistant, bạn cần kết nối với Google Calendar của mình.")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("Kết nối Calendar", use_container_width=True):
-            try:
-                oauth_url = api_client.get_google_oauth_url()
-                st.markdown(f"[Click vào đây để kết nối]({oauth_url})")
-                st.info("Sau khi kết nối xong, bạn sẽ được chuyển về trang này.")
-            except Exception as e:
-                st.error(f"Lỗi: {str(e)}")
-    
-    with col2:
-        if st.button("Bỏ qua (Dùng chế độ Demo)", use_container_width=True):
-            st.session_state.oauth_connected = True
-            st.rerun()
 
-def check_authentication():
+def check_webapp_authentication():
     """
-    Check if user is authenticated
+    Check if user is authenticated to webapp
     
     Returns:
         True if authenticated, False otherwise
     """
     return st.session_state.get("authenticated", False)
 
+
 def logout():
     """
-    Logout user
+    Logout user from both webapp and Calendar Service
     """
     st.session_state.authenticated = False
     st.session_state.auth_token = None
-    st.session_state.oauth_connected = False
+    st.session_state.token_connected = False
     st.session_state.messages = []
+    st.session_state.conversation_id = None
     st.rerun()

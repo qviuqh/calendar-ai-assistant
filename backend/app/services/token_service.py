@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict, Any
 import httpx
 from sqlalchemy.orm import Session
 from cryptography.fernet import Fernet
-import os
+import logging
 
 from app.models.calendar_token import CalendarToken
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Initialize Fernet cipher suite
 cipher_suite = Fernet(settings.TOKEN_ENCRYPTION_KEY)
@@ -24,6 +26,61 @@ class TokenService:
         return cipher_suite.decrypt(encrypted_token.encode()).decode()
     
     @staticmethod
+    async def login_to_calendar_service(email: str, password: str) -> Dict[str, Any]:
+        """
+        Login to Calendar Service (third-party API) to get tokens
+        
+        Args:
+            email: User's email on calendar service
+            password: User's password on calendar service
+            
+        Returns:
+            Dict with tokens: {
+                "access_token": "...",
+                "refresh_token": "...",
+                "expires_in": 1800,
+                "token_type": "bearer"
+            }
+        """
+        login_url = f"{settings.CALENDAR_SERVICE_URL}{settings.CALENDAR_LOGIN_ENDPOINT}"
+        
+        logger.info(f"Logging into Calendar Service at {login_url}")
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    login_url,
+                    json={
+                        "email": email,
+                        "password": password
+                    },
+                    headers={
+                        "Content-Type": "application/json"
+                    },
+                    timeout=10.0
+                )
+                
+                if response.status_code != 200:
+                    error_detail = response.text
+                    logger.error(f"Calendar login failed: {error_detail}")
+                    raise Exception(f"Calendar login failed: {error_detail}")
+                
+                data = response.json()
+                
+                # Validate response format
+                required_fields = ["access_token", "expires_in", "refresh_token", "token_type"]
+                for field in required_fields:
+                    if field not in data:
+                        raise Exception(f"Missing field in Calendar API response: {field}")
+                
+                logger.info("Successfully logged into Calendar Service")
+                return data
+                
+            except httpx.RequestError as e:
+                logger.error(f"Network error connecting to Calendar Service: {str(e)}")
+                raise Exception(f"Cannot connect to Calendar Service: {str(e)}")
+    
+    @staticmethod
     async def save_user_token(
         db: Session,
         user_id: str,
@@ -38,7 +95,7 @@ class TokenService:
         
         Args:
             db: Database session
-            user_id: User ID
+            user_id: User ID (webapp user)
             access_token: Access token from calendar service
             refresh_token: Refresh token from calendar service
             expires_in: Token expiration time in seconds
@@ -71,6 +128,7 @@ class TokenService:
             
             db.commit()
             db.refresh(existing_token)
+            logger.info(f"Updated calendar token for user {user_id}")
             return existing_token
         else:
             # Create new token
@@ -86,12 +144,13 @@ class TokenService:
             db.add(new_token)
             db.commit()
             db.refresh(new_token)
+            logger.info(f"Created new calendar token for user {user_id}")
             return new_token
     
     @staticmethod
     async def refresh_access_token(refresh_token: str) -> dict:
         """
-        Use refresh token to get new access token from your calendar service
+        Use refresh token to get new access token from calendar service
         
         Args:
             refresh_token: Refresh token
@@ -99,29 +158,40 @@ class TokenService:
         Returns:
             Dict with new access_token and expires_in
         """
+        refresh_url = f"{settings.CALENDAR_SERVICE_URL}{settings.CALENDAR_TOKEN_REFRESH_ENDPOINT}"
+        
+        logger.info(f"Refreshing token at {refresh_url}")
+        
         async with httpx.AsyncClient() as client:
-            # Adjust this based on your calendar service's API
-            response = await client.post(
-                settings.CALENDAR_TOKEN_REFRESH_ENDPOINT,
-                json={
-                    "grant_type": "refresh_token",
-                    "refresh_token": refresh_token
-                },
-                headers={
-                    "Content-Type": "application/json"
+            try:
+                response = await client.post(
+                    refresh_url,
+                    json={
+                        "grant_type": "refresh_token",
+                        "refresh_token": refresh_token
+                    },
+                    headers={
+                        "Content-Type": "application/json"
+                    },
+                    timeout=10.0
+                )
+                
+                if response.status_code != 200:
+                    error_detail = response.text
+                    logger.error(f"Token refresh failed: {error_detail}")
+                    raise Exception(f"Failed to refresh token: {error_detail}")
+                
+                data = response.json()
+                
+                logger.info("Successfully refreshed access token")
+                return {
+                    "access_token": data.get("access_token"),
+                    "expires_in": data.get("expires_in", 3600)  # Default 1 hour
                 }
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Failed to refresh token: {response.text}")
-            
-            data = response.json()
-            
-            # Adjust field names based on your calendar service's response
-            return {
-                "access_token": data.get("access_token"),
-                "expires_in": data.get("expires_in", 3600)  # Default 1 hour
-            }
+                
+            except httpx.RequestError as e:
+                logger.error(f"Network error during token refresh: {str(e)}")
+                raise Exception(f"Cannot connect to Calendar Service: {str(e)}")
     
     @staticmethod
     async def get_valid_access_token(db: Session, user_id: str) -> Optional[str]:
@@ -142,6 +212,7 @@ class TokenService:
         ).first()
         
         if not calendar_token:
+            logger.warning(f"No calendar token found for user {user_id}")
             return None
         
         # Check if token is expired or about to expire (1 min buffer)
@@ -150,9 +221,11 @@ class TokenService:
         
         if now < expires_soon:
             # Token still valid
+            logger.info(f"Using existing valid token for user {user_id}")
             return calendar_token.access_token
         
         # Token expired, need to refresh
+        logger.info(f"Token expired for user {user_id}, refreshing...")
         try:
             refresh_token = TokenService.decrypt_token(calendar_token.refresh_token_enc)
             new_tokens = await TokenService.refresh_access_token(refresh_token)
@@ -165,10 +238,12 @@ class TokenService:
             db.commit()
             db.refresh(calendar_token)
             
+            logger.info(f"Successfully refreshed token for user {user_id}")
             return new_tokens["access_token"]
             
         except Exception as e:
             # Refresh failed, mark as inactive
+            logger.error(f"Token refresh failed for user {user_id}: {str(e)}")
             calendar_token.is_active = False
             db.commit()
             raise Exception(f"Token refresh failed: {str(e)}")
@@ -224,6 +299,8 @@ class TokenService:
         if token:
             db.delete(token)
             db.commit()
+            logger.info(f"Deleted calendar token for user {user_id}")
             return True
         
+        logger.warning(f"No token found to delete for user {user_id}")
         return False

@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, token, chat  # Changed from oauth to token
+from app.routers import auth, token, chat
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

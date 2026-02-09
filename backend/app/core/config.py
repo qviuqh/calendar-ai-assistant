@@ -16,8 +16,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     
     # Custom Calendar Service
-    CALENDAR_SERVICE_URL: str
-    CALENDAR_TOKEN_REFRESH_ENDPOINT: str
+    CALENDAR_SERVICE_URL: str  # Base URL: http://localhost:8000
+    CALENDAR_LOGIN_ENDPOINT: str  # Full path: /auth/login
+    CALENDAR_TOKEN_REFRESH_ENDPOINT: str  # Full path: /auth/refresh
     
     TOKEN_ENCRYPTION_KEY: str
     
