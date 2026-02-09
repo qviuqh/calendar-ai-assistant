@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, reusable_oauth2
 from app.services.token_service import TokenService
 from app.schemas.token import TokenInput, TokenResponse, TokenStatus
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/token", tags=["Calendar Token"])
 @router.post("/save", response_model=TokenResponse)
 async def save_calendar_token(
     token_data: TokenInput,
-    user_token: str,  # JWT from frontend
+    user_token: str = Depends(reusable_oauth2),  # JWT from frontend
     db: Session = Depends(get_db)
 ):
     """
@@ -63,7 +63,7 @@ async def check_token_status(
 
 @router.delete("/delete")
 async def delete_calendar_token(
-    user_token: str,
+    user_token: str = Depends(reusable_oauth2),
     db: Session = Depends(get_db)
 ):
     """
@@ -84,7 +84,7 @@ async def delete_calendar_token(
 
 @router.post("/refresh")
 async def manually_refresh_token(
-    user_token: str,
+    user_token: str = Depends(reusable_oauth2),
     db: Session = Depends(get_db)
 ):
     """

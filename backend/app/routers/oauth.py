@@ -4,16 +4,16 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
-from app.core.security import decode_access_token
-from app.services.oauth_service import OAuthService
-from backend.app.models.calendar_token import OAuthToken
+from app.core.security import decode_access_token, reusable_oauth2
+from app.services.token_service import TokenService
+from backend.app.models.calendar_token import CalendarToken
 from app.core.config import settings
 
 router = APIRouter(prefix="/oauth", tags=["OAuth"])
 
 @router.get("/connect")
 async def connect_google_calendar(
-    user_token: str,  # JWT from frontend
+    user_token: str = Depends(reusable_oauth2),  # JWT from frontend
     db: Session = Depends(get_db)
 ):
     """
@@ -48,13 +48,13 @@ async def oauth_callback(
     """
     try:
         # Exchange code for tokens
-        tokens = await OAuthService.exchange_code_for_tokens(code)
+        tokens = await TokenService.exchange_code_for_tokens(code)
         
         # Encrypt refresh token
-        encrypted_refresh = OAuthService.encrypt_token(tokens["refresh_token"])
+        encrypted_refresh = TokenService.encrypt_token(tokens["refresh_token"])
         
         # Save to database
-        oauth_token = OAuthToken(
+        oauth_token = CalendarToken(
             user_id=state,
             provider="calendar",
             access_token=tokens["access_token"],

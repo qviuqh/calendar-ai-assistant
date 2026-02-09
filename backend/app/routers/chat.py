@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, reusable_oauth2
 from app.services.token_service import TokenService  # Changed
 from app.services.agent_service import AgentService
 
@@ -18,7 +18,7 @@ class ChatRequest(BaseModel):
 @router.post("/")
 async def chat(
     request: ChatRequest,
-    user_token: str,  # JWT from header
+    user_token: str = Depends(reusable_oauth2),  # JWT from header
     db: Session = Depends(get_db)
 ):
     """

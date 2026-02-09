@@ -56,7 +56,7 @@ class BackendAPIClient:
             logger.error(f"Login failed: {str(e)}")
             raise
     
-    # ========== Calendar Token Management (NEW) ==========
+    # ========== Calendar Token Management ==========
     
     def save_calendar_token(
         self,
@@ -95,7 +95,7 @@ class BackendAPIClient:
             response = self.session.post(
                 f"{self.api_v1}/token/save",
                 json=payload,
-                params={"user_token": self.auth_token}
+                headers=self._get_headers()
             )
             response.raise_for_status()
             return response.json()
@@ -113,7 +113,7 @@ class BackendAPIClient:
         try:
             response = self.session.get(
                 f"{self.api_v1}/token/status",
-                params={"user_token": self.auth_token}
+                headers=self._get_headers()
             )
             response.raise_for_status()
             return response.json()
@@ -131,7 +131,7 @@ class BackendAPIClient:
         try:
             response = self.session.post(
                 f"{self.api_v1}/token/refresh",
-                params={"user_token": self.auth_token}
+                headers=self._get_headers()
             )
             response.raise_for_status()
             return response.json()
@@ -149,7 +149,7 @@ class BackendAPIClient:
         try:
             response = self.session.delete(
                 f"{self.api_v1}/token/delete",
-                params={"user_token": self.auth_token}
+                headers=self._get_headers()
             )
             response.raise_for_status()
             return response.json()
@@ -178,7 +178,7 @@ class BackendAPIClient:
             response = self.session.post(
                 f"{self.api_v1}/chat/",
                 json=payload,
-                params={"user_token": self.auth_token},
+                headers=self._get_headers(),
                 stream=True,
                 timeout=60
             )
